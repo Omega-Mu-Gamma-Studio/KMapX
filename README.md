@@ -1,7 +1,7 @@
 # KMapX
 
 > **Boolean expression simplifier powered by the Quine–McCluskey algorithm.**  
-> Built by [Omega Mu Gamma Studio](https://github.com/Omega-Mu-Gamma-Studio) · Live at [kmapx.vercel.app](https://kmapx.vercel.app) *(coming soon)*
+> Built by [Omega Mu Gamma Studio](https://github.com/Omega-Mu-Gamma-Studio) · Live at [kmapx.vercel.app](https://kmapx.vercel.app) 
 
 ---
 
