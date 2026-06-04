@@ -94,7 +94,7 @@
           <input
             type="text"
             id="expr-input"
-            placeholder="AB + CD' + A'BC"
+            placeholder="AB + CD' + A'BC + d(5,7)"
             autocomplete="off"
             spellcheck="false"
           />
@@ -111,8 +111,9 @@
         <button class="ex-btn" data-expr="AB'+A'B">AB'+A'B</button>
         <button class="ex-btn" data-expr="ABC+ABD+A'B'C'">ABC+ABD+A'B'C'</button>
         <button class="ex-btn" data-expr="A'B'C'D'+A'BCD+AB'CD+ABCD'">Full SOP</button>
+        <button class="ex-btn" data-expr="A'B'+AB+d(1,3)">With d(x)</button>
       </div>
-      <div class="input-hint">Variables: A B C D &nbsp;|&nbsp; NOT: apostrophe (') &nbsp;|&nbsp; OR: plus (+) &nbsp;|&nbsp; AND: just concatenate</div>
+      <div class="input-hint">Variables: A B C D &nbsp;|&nbsp; NOT: apostrophe (') &nbsp;|&nbsp; OR: plus (+) &nbsp;|&nbsp; AND: concatenate &nbsp;|&nbsp; Don't Cares: d(m1,m2,...)</div>
     </section>
 
     <!-- Tab panels -->

@@ -148,9 +148,32 @@ function enterApp() {
 
 // ─── Boolean Expression Parser ────────────────────────────────────────────────
 
+// Parse don't-care minterm list from notation like d(3,5,7) or d(3)+d(5)
+// Returns array of integer minterm indices (0-15)
+function parseDontCareList(expr) {
+  const dcNums = [];
+  // Match all d(...) groups anywhere in the expression
+  const re = /d\(([^)]*)\)/gi;
+  let m;
+  while ((m = re.exec(expr)) !== null) {
+    m[1].split(',').forEach(s => {
+      const n = parseInt(s.trim(), 10);
+      if (!isNaN(n) && n >= 0 && n <= 15) dcNums.push(n);
+    });
+  }
+  return [...new Set(dcNums)];
+}
+
+// Strip all d(...) groups from the expression before parsing SOP terms
+function stripDontCares(expr) {
+  return expr.replace(/\+?\s*d\([^)]*\)/gi, '').replace(/^\s*\+/, '').trim();
+}
+
 function parseExpression(expr) {
   expr = expr.replace(/\s+/g, '');
-  const terms = expr.split('+').filter(Boolean);
+  // Remove don't-care groups before parsing boolean terms
+  const cleanExpr = stripDontCares(expr);
+  const terms = cleanExpr.split('+').filter(Boolean);
   const result = [];
 
   for (const term of terms) {
@@ -221,6 +244,7 @@ function mintermToBinary(m) {
   return [(m>>3)&1, (m>>2)&1, (m>>1)&1, m&1];
 }
 
+// findPrimeImplicants now accepts all minterms INCLUDING don't cares for grouping
 function findPrimeImplicants(minterms) {
   if (!minterms.length) return [];
 
@@ -261,14 +285,17 @@ function findPrimeImplicants(minterms) {
   return [...primeImplicants].map(s => JSON.parse(s));
 }
 
-function findEssentialPIs(pis, minterms) {
-  if (!minterms.length) return [];
-  let remaining = new Set(minterms);
+// onMinterms = must-cover set; dcMinterms = allowed but not required
+function findEssentialPIs(pis, onMinterms, dcMinterms = []) {
+  if (!onMinterms.length) return [];
+  const dcSet = new Set(dcMinterms);
+  // Only need to cover on-set minterms; PIs may contain DC minterms but that's fine
+  let remaining = new Set(onMinterms);
   let available = pis.map(pi => new Set(pi));
   const selected = [];
 
   while (remaining.size > 0) {
-    // Find essential PIs
+    // Find essential PIs (only count coverage of on-set minterms)
     let essential = null;
     for (const m of remaining) {
       const covers = available.filter(pi => pi.has(m));
@@ -279,7 +306,7 @@ function findEssentialPIs(pis, minterms) {
       available = available.filter(pi => pi !== essential);
       for (const m of essential) remaining.delete(m);
     } else {
-      // Greedy: pick PI covering most remaining
+      // Greedy: pick PI covering most remaining on-set minterms
       const best = available.reduce((a,b) =>
         [...b].filter(m => remaining.has(m)).length >
         [...a].filter(m => remaining.has(m)).length ? b : a
@@ -305,10 +332,13 @@ function groupToExpression(mintermsArr) {
   return terms.join('') || '1';
 }
 
-function analyzeKMap(minterms) {
+function analyzeKMap(minterms, dcMinterms = []) {
   if (!minterms.length) return [];
-  const pis = findPrimeImplicants(minterms);
-  const cover = findEssentialPIs(pis, minterms);
+  // Feed both on-set AND don't-care minterms into PI finder so they can form larger groups
+  const allForGrouping = [...new Set([...minterms, ...dcMinterms])];
+  const pis = findPrimeImplicants(allForGrouping);
+  // But only require on-set coverage during essential PI selection
+  const cover = findEssentialPIs(pis, minterms, dcMinterms);
   return cover.map(piSet => {
     const mList = [...piSet].sort((a,b)=>a-b);
     return {
@@ -332,18 +362,24 @@ function groupsToSOP(groups) {
 
 // ─── K-Map Rendering ─────────────────────────────────────────────────────────
 
-function buildKMapGrid(minterms, groups) {
+function buildKMapGrid(minterms, groups, dcMinterms = []) {
   // cell → group index
   const cellGroup = {};
   groups.forEach((g, gi) => {
     g.cells.forEach(([r,c]) => { cellGroup[`${r},${c}`] = gi; });
   });
 
-  // 4×4 value grid
+  const dcSet = new Set(dcMinterms);
+
+  // 4×4 value grid: 0, 1, or 'x' for don't care
   const grid = Array.from({length:4}, () => Array(4).fill(0));
   minterms.forEach(m => {
     const [r,c] = KMAP_COORDS[m];
     grid[r][c] = 1;
+  });
+  dcMinterms.forEach(m => {
+    const coord = KMAP_COORDS[m];
+    if (coord) grid[coord[0]][coord[1]] = 'x';
   });
 
   const wrap = document.createElement('div');
@@ -437,7 +473,7 @@ function buildKMapGrid(minterms, groups) {
 
 // ─── Results Rendering ────────────────────────────────────────────────────────
 
-function buildResults(minterms, simplified, original) {
+function buildResults(minterms, simplified, original, dcMinterms = []) {
   const origTerms = original.split('+').filter(s=>s.trim()).length;
   const simpTerms = simplified.split('+').filter(s=>s.trim()).length;
   const reduction = Math.max(0, origTerms - simpTerms);
@@ -452,6 +488,7 @@ function buildResults(minterms, simplified, original) {
     { label:'SIMPLIFIED TERMS',  val: simpTerms,              cls:'green'  },
     { label:'TERMS REDUCED',     val: reduction,              cls:'red'    },
     { label:'MINTERMS',          val: [...new Set(minterms)].length, cls:'blue' },
+    { label:"DON'T CARES",       val: dcMinterms.length,      cls:'dc'     },
   ].forEach(({label,val,cls}) => {
     const card = document.createElement('div');
     card.className = 'stat-card';
@@ -464,11 +501,15 @@ function buildResults(minterms, simplified, original) {
   // Expression rows
   const rows = document.createElement('div');
   rows.className = 'expr-rows';
-  [
+  const exprRowData = [
     { tag:'ORIGINAL',   val: original,                         cls:'original'   },
     { tag:'SIMPLIFIED', val: simplified,                       cls:'simplified' },
     { tag:'MINTERMS',   val: [...new Set(minterms)].sort((a,b)=>a-b).join(', '), cls:'minterms' },
-  ].forEach(({tag,val,cls}) => {
+  ];
+  if (dcMinterms.length) {
+    exprRowData.push({ tag:"DON'T CARES", val: [...dcMinterms].sort((a,b)=>a-b).join(', '), cls:'dc' });
+  }
+  exprRowData.forEach(({tag,val,cls}) => {
     const row = document.createElement('div');
     row.className = 'expr-row';
     row.innerHTML = `<span class="expr-tag">${tag}</span>
@@ -569,33 +610,40 @@ function simplify() {
   try {
     setStatus('Processing...');
 
+    // Extract don't-care minterm indices from d(...) notation
+    const dcMinterms = parseDontCareList(expr);
+
     const parsed = parseExpression(expr);
-    if (!parsed.length) { setStatus('No valid terms found.', 'error'); return; }
+    if (!parsed.length && !dcMinterms.length) { setStatus('No valid terms found.', 'error'); return; }
 
     const sopTerms = toSOP(parsed);
     const minterms = getMinterms(sopTerms);
 
+    // Remove any don't-care indices that overlap with on-set minterms
+    const dcFiltered = dcMinterms.filter(m => !minterms.includes(m));
+
     if (!minterms.length) { setStatus('Could not extract minterms.', 'error'); return; }
 
-    const groups     = analyzeKMap(minterms);
+    const groups     = analyzeKMap(minterms, dcFiltered);
     const simplified = groupsToSOP(groups);
 
     // Render K-Map
     const kmapCont = document.getElementById('kmap-container');
     kmapCont.innerHTML = '';
-    kmapCont.appendChild(buildKMapGrid(minterms, groups));
+    kmapCont.appendChild(buildKMapGrid(minterms, groups, dcFiltered));
 
     // Render Results
     const resCont = document.getElementById('results-container');
     resCont.innerHTML = '';
-    resCont.appendChild(buildResults(minterms, simplified, expr));
+    resCont.appendChild(buildResults(minterms, simplified, expr, dcFiltered));
 
     // Render Implicants
     const piCont = document.getElementById('implicants-container');
     piCont.innerHTML = '';
     piCont.appendChild(buildImplicants(groups));
 
-    setStatus(`${expr}  →  ${simplified}`, 'success');
+    const dcNote = dcFiltered.length ? `  [d(${dcFiltered.join(',')})]` : '';
+    setStatus(`${expr}  →  ${simplified}${dcNote}`, 'success');
 
     // Switch to kmap tab
     document.querySelector('[data-tab="kmap"]').click();

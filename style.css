@@ -609,6 +609,10 @@ html, body {
 .kmap-cell.val-0 .cell-val { color: var(--muted); }
 .kmap-cell.val-1 .cell-val { color: var(--bg); }
 
+/* Don't-care cells: show X in orange, dashed border */
+.kmap-cell.val-x { background: rgba(255,144,64,0.08); border-color: rgba(255,144,64,0.4); border-style: dashed; }
+.kmap-cell.val-x .cell-val { color: #FF9040; font-style: italic; font-weight: 700; }
+
 /* group coloring */
 .kmap-cell.group-0 { background: rgba(0,255,178,0.2);  border-color: var(--g0); box-shadow: inset 0 0 0 1px var(--g0), 0 0 10px rgba(0,255,178,0.2); }
 .kmap-cell.group-1 { background: rgba(255,64,96,0.2);  border-color: var(--g1); box-shadow: inset 0 0 0 1px var(--g1), 0 0 10px rgba(255,64,96,0.2); }
@@ -693,6 +697,7 @@ html, body {
 .stat-value.red    { color: var(--red); }
 .stat-value.blue   { color: var(--accent2); }
 .stat-value.yellow { color: var(--yellow); }
+.stat-value.dc     { color: #FF9040; }
 
 .expr-rows { display: flex; flex-direction: column; gap: 10px; }
 
@@ -734,6 +739,7 @@ html, body {
 .expr-value.original   { color: var(--muted2); }
 .expr-value.simplified { color: var(--accent); }
 .expr-value.minterms   { color: var(--accent2); }
+.expr-value.dc         { color: #FF9040; }
 
 .copy-btn {
   background: none;
